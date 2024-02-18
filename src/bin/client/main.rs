@@ -15,7 +15,7 @@ fn main() -> Result<()> {
             match line {
                 Ok(msg) => {
                     let now = Local::now();
-                    println!("{}:{} — {}", now.hour(), now.minute(), msg);
+                    println!("{:02}:{:02} — {}", now.hour(), now.minute(), msg);
                 }
                 Err(e) => eprintln!("Error: {}", e),
             }
