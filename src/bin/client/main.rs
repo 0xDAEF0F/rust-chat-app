@@ -1,7 +1,6 @@
 use anyhow::Result;
 use chrono::{Local, Timelike};
-use std::io::prelude::BufRead;
-use std::io::{stdin, BufReader, Write};
+use std::io::{prelude::BufRead, stdin, BufReader, Write};
 use std::net::TcpStream;
 use std::thread;
 
@@ -9,8 +8,9 @@ fn main() -> Result<()> {
     let mut stream = TcpStream::connect("127.0.0.1:3000")?;
     let stream_clone = stream.try_clone().expect("Could not clone stream");
 
-    let reader_handle = thread::spawn(move || {
+    thread::spawn(move || {
         let reader = BufReader::new(stream_clone);
+
         for line in reader.lines() {
             match line {
                 Ok(msg) => {
@@ -40,8 +40,6 @@ fn main() -> Result<()> {
             },
         }
     }
-
-    reader_handle.join().unwrap();
 
     Ok(())
 }
