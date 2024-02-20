@@ -85,10 +85,13 @@ impl ServerState {
             .context("could not send message to rx")
     }
 
-    pub fn add_peer(&mut self, client: Peer) {
+    pub fn add_peer(&mut self, client: Peer) -> &Peer {
         self.position_in_list
             .insert(client.peer_addr, self.clients.len());
+
         self.clients.push(client);
+
+        self.clients.last().unwrap()
     }
 
     pub fn register_username(
@@ -144,5 +147,10 @@ impl Peer {
             peer_addr,
             username,
         }
+    }
+
+    pub fn request_authentication(&self) -> anyhow::Result<()> {
+        let tx = &self.transmitter;
+        Ok(tx.send(ServerMessage::Unauthenticated)?)
     }
 }

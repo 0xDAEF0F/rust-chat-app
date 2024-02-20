@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ServerMessage {
     Unauthenticated,
     UsernameUnavailable,
@@ -10,8 +10,8 @@ pub enum ServerMessage {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Message {
-    username: String,
-    message: String,
+    pub username: String,
+    pub message: String,
 }
 
 impl Message {
@@ -23,7 +23,7 @@ impl Message {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ClientMessage {
     Username(String),
     Message(String),

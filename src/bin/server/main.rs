@@ -41,7 +41,9 @@ fn handle_client(stream: TcpStream, server_state: Arc<Mutex<ServerState>>) {
     server_state
         .lock()
         .unwrap()
-        .add_peer(Peer::new(tx, peer_addr, None));
+        .add_peer(Peer::new(tx, peer_addr, None))
+        .request_authentication()
+        .unwrap();
 
     let reader_handle = thread::spawn(move || {
         let reader = BufReader::new(reader);
@@ -50,7 +52,8 @@ fn handle_client(stream: TcpStream, server_state: Arc<Mutex<ServerState>>) {
         for line in reader.lines() {
             match line {
                 Ok(line) => {
-                    let client_message: ClientMessage = serde_json::from_str(&line).unwrap();
+                    let client_message: ClientMessage = serde_json::from_str(&line)?;
+                    println!("{:?}", client_message);
                     let mut state = server_state.lock().unwrap();
                     match client_message {
                         ClientMessage::Message(m) => {
@@ -88,7 +91,6 @@ fn handle_client(stream: TcpStream, server_state: Arc<Mutex<ServerState>>) {
     });
 
     let _ = reader_handle.join();
-
     let _ = writer_handle.join();
 
     println!("dropping the thread of peer: {}", peer_addr);
