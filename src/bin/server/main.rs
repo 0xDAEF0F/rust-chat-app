@@ -31,7 +31,7 @@ fn main() -> Result<()> {
 
 fn handle_client(stream: TcpStream, server_state: Arc<Mutex<ServerState>>) {
     let peer_addr = stream.peer_addr().unwrap();
-    println!("new peer: {:?}", peer_addr);
+    println!("new peer connected: {:?}", peer_addr);
 
     let reader = stream.try_clone().expect("Could not clone stream");
     let mut writer = stream;
@@ -53,7 +53,6 @@ fn handle_client(stream: TcpStream, server_state: Arc<Mutex<ServerState>>) {
             match line {
                 Ok(line) => {
                     let client_message: ClientMessage = serde_json::from_str(&line)?;
-                    println!("{:?}", client_message);
                     let mut state = server_state.lock().unwrap();
                     match client_message {
                         ClientMessage::Message(m) => {

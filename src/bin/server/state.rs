@@ -7,7 +7,6 @@ use std::sync::mpsc;
 pub struct ServerState {
     clients: Vec<Peer>,
     position_in_list: HashMap<SocketAddr, usize>,
-    usernames: HashMap<SocketAddr, String>,
 }
 
 impl ServerState {
@@ -15,12 +14,18 @@ impl ServerState {
         ServerState {
             clients: vec![],
             position_in_list: HashMap::new(),
-            usernames: HashMap::new(),
         }
     }
 
     pub fn is_username_available(&self, username: &str) -> bool {
-        !(self.usernames.values().any(|u| u == username))
+        for peer in self.clients.iter() {
+            if let Some(u) = &peer.username {
+                if u == username {
+                    return false;
+                }
+            }
+        }
+        true
     }
 
     pub fn cast_message(&self, msg: Message) {

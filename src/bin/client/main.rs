@@ -3,12 +3,13 @@ use chrono::{Local, Timelike};
 use rust_chat_app::{ClientMessage, ServerMessage};
 use std::io::{prelude::BufRead, stdin, BufReader, Write};
 use std::net::TcpStream;
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 
 fn main() -> Result<()> {
     let mut stream = TcpStream::connect("127.0.0.1:3000")?;
     let stream_clone = stream.try_clone().expect("Could not clone stream");
+    let is_auth = Arc::new(Mutex::new(false));
 
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
@@ -28,6 +29,19 @@ fn main() -> Result<()> {
         Ok::<(), anyhow::Error>(())
     });
 
+    let is_auth_c = Arc::clone(&is_auth);
+    thread::spawn(move || {
+        while let Ok(user_input) = capture_input() {
+            if *is_auth_c.lock().unwrap() {
+                send_message(&mut stream, user_input)?;
+            } else {
+                send_username(&mut stream, user_input)?;
+            }
+        }
+
+        Ok::<(), anyhow::Error>(())
+    });
+
     while let Ok(msg) = rx.recv() {
         match msg {
             ServerMessage::Message(m) => {
@@ -39,19 +53,18 @@ fn main() -> Result<()> {
                     m.username,
                     m.message
                 );
-                send_message(&mut stream, capture_input()?)?;
             }
             ServerMessage::UsernameAccepted => {
+                *is_auth.lock().unwrap() = true;
                 println!("Username accepted!");
-                send_message(&mut stream, capture_input()?)?;
             }
             ServerMessage::UsernameUnavailable => {
+                *is_auth.lock().unwrap() = false;
                 eprintln!("Username rejected. Try again.");
-                send_username(&mut stream, capture_input()?)?;
             }
             ServerMessage::Unauthenticated => {
+                *is_auth.lock().unwrap() = false;
                 eprintln!("You are unathenticated. Enter a username to authenticate yourself.");
-                send_username(&mut stream, capture_input()?)?;
             }
         }
     }
