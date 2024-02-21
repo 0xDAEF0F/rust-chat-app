@@ -1,13 +1,20 @@
 use anyhow::{bail, Result};
 use chrono::{Local, Timelike};
+use crossterm::{
+    cursor::MoveUp,
+    terminal::{Clear, ClearType},
+    ExecutableCommand,
+};
 use rust_chat_app::{ClientMessage, ServerMessage};
 use std::io::{prelude::BufRead, stdin, BufReader, Write};
+use std::io::{stdout, Stdout};
 use std::net::TcpStream;
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 
 fn main() -> Result<()> {
     let mut stream = TcpStream::connect("127.0.0.1:3000")?;
+    let mut stdout = stdout();
     let stream_clone = stream.try_clone().expect("Could not clone stream");
     let is_auth = Arc::new(Mutex::new(false));
 
@@ -31,7 +38,7 @@ fn main() -> Result<()> {
 
     let is_auth_c = Arc::clone(&is_auth);
     thread::spawn(move || {
-        while let Ok(user_input) = capture_input() {
+        while let Ok(user_input) = capture_input(&mut stdout) {
             if *is_auth_c.lock().unwrap() {
                 send_message(&mut stream, user_input)?;
             } else {
@@ -47,7 +54,7 @@ fn main() -> Result<()> {
             ServerMessage::Message(m) => {
                 let now = Local::now();
                 println!(
-                    "{:2}:{:2} {}: {}",
+                    "{:02}:{:02} {}: {}",
                     now.hour(),
                     now.minute(),
                     m.username,
@@ -92,10 +99,14 @@ fn send_message(stream: &mut TcpStream, message: String) -> Result<()> {
     Ok(())
 }
 
-fn capture_input() -> Result<String> {
+fn capture_input(stdout: &mut Stdout) -> Result<String> {
     let mut input_string = String::new();
     stdin().read_line(&mut input_string)?;
     let trimmed = input_string.trim();
+
+    // clear the line just entered
+    stdout.execute(MoveUp(1))?;
+    stdout.execute(Clear(ClearType::CurrentLine))?;
 
     if trimmed.is_empty() {
         bail!("input string empty")

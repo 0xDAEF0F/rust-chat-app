@@ -47,7 +47,6 @@ fn handle_client(stream: TcpStream, server_state: Arc<Mutex<ServerState>>) {
 
     let reader_handle = thread::spawn(move || {
         let reader = BufReader::new(reader);
-        let peer_addr = peer_addr;
 
         for line in reader.lines() {
             match line {
