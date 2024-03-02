@@ -2,7 +2,7 @@ use anyhow::Context;
 use rust_chat_app::{Message, ServerMessage};
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::mpsc;
+use tokio::sync::mpsc;
 
 pub struct ServerState {
     clients: Vec<Peer>,
@@ -32,7 +32,7 @@ impl ServerState {
         for sender in self.clients.iter() {
             let msg_c = msg.clone();
 
-            match sender.transmitter.send(ServerMessage::Message(msg_c)) {
+            match sender.transmitter.try_send(ServerMessage::Message(msg_c)) {
                 Ok(_) => continue,
                 Err(_) => eprintln!("could not deliver msg: {:?}", &msg),
             };
@@ -74,7 +74,7 @@ impl ServerState {
 
         let tx = &self.clients[*idx].transmitter;
 
-        tx.send(ServerMessage::Unauthenticated)
+        tx.try_send(ServerMessage::Unauthenticated)
             .context("could not send message to rx")
     }
 
@@ -86,7 +86,7 @@ impl ServerState {
 
         let tx = &self.clients[*idx].transmitter;
 
-        tx.send(ServerMessage::UsernameUnavailable)
+        tx.try_send(ServerMessage::UsernameUnavailable)
             .context("could not send message to rx")
     }
 
@@ -113,7 +113,7 @@ impl ServerState {
 
         let tx = &self.clients[*idx].transmitter;
 
-        tx.send(ServerMessage::UsernameAccepted)?;
+        tx.try_send(ServerMessage::UsernameAccepted)?;
 
         Ok(())
     }
@@ -156,6 +156,6 @@ impl Peer {
 
     pub fn request_authentication(&self) -> anyhow::Result<()> {
         let tx = &self.transmitter;
-        Ok(tx.send(ServerMessage::Unauthenticated)?)
+        Ok(tx.try_send(ServerMessage::Unauthenticated)?)
     }
 }

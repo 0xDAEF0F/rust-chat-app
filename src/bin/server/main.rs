@@ -1,56 +1,66 @@
 use anyhow::Result;
 use rust_chat_app::ClientMessage;
 use state::{Peer, ServerState};
-use std::io::prelude::BufRead;
-use std::io::{BufReader, Write};
-use std::net::{TcpListener, TcpStream};
-use std::sync::{mpsc, Arc, Mutex};
-use std::thread;
+use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::mpsc;
 
 mod state;
 
-fn main() -> Result<()> {
-    let listener = TcpListener::bind("127.0.0.1:3000")?;
+#[tokio::main]
+async fn main() -> Result<()> {
+    let listener = TcpListener::bind("127.0.0.1:3000").await?;
 
     let senders = Arc::new(Mutex::new(ServerState::new()));
 
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                let senders = Arc::clone(&senders);
-                thread::spawn(move || {
-                    handle_client(stream, senders);
-                });
+    loop {
+        println!("loop");
+        match listener.accept().await {
+            Ok((stream, addr)) => {
+                let server_state = Arc::clone(&senders);
+                println!("hello");
+                tokio::spawn(async move { handle_client(stream, server_state, addr).await });
+                println!("world");
             }
             Err(e) => eprintln!("Failed to accept client: {}", e),
-        }
+        };
     }
-
-    Ok(())
 }
 
-fn handle_client(stream: TcpStream, server_state: Arc<Mutex<ServerState>>) {
-    let peer_addr = stream.peer_addr().unwrap();
+async fn handle_client(
+    stream: TcpStream,
+    server_state: Arc<Mutex<ServerState>>,
+    peer_addr: SocketAddr,
+) {
     println!("new peer connected: {:?}", peer_addr);
+    let state_clone = Arc::clone(&server_state);
 
-    let reader = stream.try_clone().expect("Could not clone stream");
-    let mut writer = stream;
+    let (reader, mut writer) = stream.into_split();
 
-    let (tx, rx) = mpsc::channel();
+    let (tx, mut rx) = mpsc::channel(100);
 
-    server_state
-        .lock()
-        .unwrap()
-        .add_peer(Peer::new(tx, peer_addr, None))
-        .request_authentication()
-        .unwrap();
-
-    let reader_handle = thread::spawn(move || {
+    let reader_handle = tokio::spawn(async move {
         let reader = BufReader::new(reader);
+        let server_state = server_state;
 
-        for line in reader.lines() {
-            match line {
+        let mut lines = reader.lines();
+
+        state_clone
+            .lock()
+            .unwrap()
+            .add_peer(Peer::new(tx, peer_addr, None))
+            .request_authentication()
+            .unwrap();
+
+        loop {
+            match lines.next_line().await {
                 Ok(line) => {
+                    if line.is_none() {
+                        break;
+                    }
+                    let line = line.unwrap();
                     let client_message: ClientMessage = serde_json::from_str(&line)?;
                     let mut state = server_state.lock().unwrap();
                     match client_message {
@@ -80,16 +90,20 @@ fn handle_client(stream: TcpStream, server_state: Arc<Mutex<ServerState>>) {
         Ok::<(), anyhow::Error>(())
     });
 
-    let writer_handle = thread::spawn(move || {
-        for msg in rx {
+    let writer_handle = tokio::spawn(async move {
+        loop {
+            let msg = rx.recv().await;
+            if msg.is_none() {
+                break;
+            }
+            let msg = msg.unwrap();
             let s_msg = serde_json::to_string(&msg).unwrap();
-            writer.write_all(format!("{}\n", s_msg).as_bytes()).unwrap();
-            writer.flush().unwrap();
+            let _ = writer.write_all(format!("{}\n", s_msg).as_bytes()).await;
+            let _ = writer.flush().await;
         }
     });
 
-    let _ = reader_handle.join();
-    let _ = writer_handle.join();
+    let _ = tokio::join!(reader_handle, writer_handle);
 
     println!("dropping the thread of peer: {}", peer_addr);
 }
