@@ -110,7 +110,7 @@ fn capture_input(stdout: &mut Stdout) -> Result<String> {
 
     if trimmed.is_empty() {
         bail!("input string empty")
-    } else {
-        Ok(trimmed.to_string())
     }
+
+    Ok(trimmed.to_string())
 }

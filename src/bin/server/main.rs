@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use rust_chat_app::ClientMessage;
 use state::{Peer, ServerState};
 use std::net::SocketAddr;
@@ -13,16 +13,13 @@ mod state;
 async fn main() -> Result<()> {
     let listener = TcpListener::bind("127.0.0.1:3000").await?;
 
-    let senders = Arc::new(Mutex::new(ServerState::new()));
+    let server_state = Arc::new(Mutex::new(ServerState::new()));
 
     loop {
-        println!("loop");
         match listener.accept().await {
             Ok((stream, addr)) => {
-                let server_state = Arc::clone(&senders);
-                println!("hello");
+                let server_state = Arc::clone(&server_state);
                 tokio::spawn(async move { handle_client(stream, server_state, addr).await });
-                println!("world");
             }
             Err(e) => eprintln!("Failed to accept client: {}", e),
         };
